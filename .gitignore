@@ -1,0 +1,4 @@
+.snakemake
+PBS_pipeline/databases/
+PBS_pipeline/input/
+PBS_pipeline/results/
