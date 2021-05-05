@@ -2,9 +2,10 @@ configfile: "config/config.yml"
 
 rule all:
     input:
-        expand("input/{sample}_host_removed_R1_val_1.fq", sample=config["samples"]),
+        expand("input/{sample}_host_removed_R1_val_1.fq.gz", sample=config["samples"]),
         expand("results/metaphlan/{sample}_profiles.txt", sample=config["samples"]),        
         expand("results/kraken2/{sample}_profiles.txt", sample=config["samples"]),
+        expand("results/bracken/{sample}_profiles.txt", sample=config["samples"]),
 
 ##### workflow starts here
 
@@ -19,22 +20,20 @@ rule trimGalore:
         sampleName="input/{base}",
         hdb="databases/GRCh38_noalt_as/GRCh38_noalt_as",
     output:
-        o1="input/{base}_host_removed_R1_val_1.fq", 
+        o1="input/{base}_host_removed_R1_val_1.fq.gz", 
     shell:
         """
         set +eu
         source ~/.bashrc
         conda activate metaphlan3 
-
-
-        #bowtie2 -p 8 -x {params.hdb} -1 {input.f1} -2 {input.f2} --un-conc-gz input/{params.bowtiename}  
+        bowtie2 -p 8 -x {params.hdb} -1 {input.f1} -2 {input.f2} --un-conc-gz input/{params.bowtiename}  
        
-        trim_galore --paired --dont_gzip -o input --fastqc {params.sampleName}_host_removed_R1.fastq.gz {params.sampleName}_host_removed_R2.fastq.gz
+        trim_galore --paired -o input --fastqc {params.sampleName}_host_removed_R1.fastq.gz {params.sampleName}_host_removed_R2.fastq.gz
         """
 
 rule metaphlan:
     input:
-        f1="input/{base}_host_removed_R1_val_1.fq",
+        f1="input/{base}_host_removed_R1_val_1.fq.gz",
     output:
         "results/metaphlan/{base}_profiles.txt",
     shell:
@@ -42,15 +41,14 @@ rule metaphlan:
         set +eu
         source ~/.bashrc
         conda activate metaphlan3
-
         metaphlan {input.f1} --input_type fastq > {output}
         """
 
 rule kraken2:
     input:
-        f1="input/{base}_host_removed_R1_val_1.fq",
+        f1="input/{base}_host_removed_R1_val_1.fq.gz",
     params:
-        f2="input/{base}_host_removed_R2_val_2.fq",
+        f2="input/{base}_host_removed_R2_val_2.fq.gz",
         db="databases/k2_pluspf_20210127"
     output:
         "results/kraken2/{base}_profiles.txt",
@@ -59,9 +57,22 @@ rule kraken2:
         set +eu
         source ~/.bashrc
         conda activate metaphlan3
-
         kraken2 --paired --db {params.db} --report {output} {input.f1} {params.f2}
         """
 
-
+rule bracken:
+    input:
+        f1="results/kraken2/{base}_profiles.txt",
+    params:
+        length=150, 
+        db="/databases/k2_pluspf_20210127"
+    output:
+        "results/bracken/{base}_profiles.txt",
+    shell:
+        """
+        set +eu
+        source ~/.bashrc
+        conda activate braken
+        bracken -d databases/k2_pluspf_20210127 -i {input.f1} -o {output} -r 150 -l S 
+        """
 
